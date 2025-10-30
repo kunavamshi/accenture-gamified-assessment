@@ -245,19 +245,25 @@
   }
 
   function getOperatorSetForRound(round) {
-    // Gradual ramp: only + for 1-5, + and - for 6-10, + - * 11-18, then all
-    if (round <= 5) return ['+'];
-    if (round <= 10) return ['+', '-'];
-    if (round <= 18) return ['+', '-', '*'];
-    return ['+', '-', '*', '/'];
+    // Always use all ops, including power ('^')
+    return ['+', '-', '*', '/', '^'];
   }
 
   function getOperandRangeForRound(round) {
-    // Increase operand magnitude and complexity with rounds
-    if (round <= 5) return { min: 1, max: 12 };
-    if (round <= 10) return { min: 3, max: 20 };
-    if (round <= 18) return { min: 6, max: 40 };
-    return { min: 10, max: 80 };
+    // Early: small/whole. Later: include floats and bigger numbers.
+    if (round <= 7) return { min: 1, max: 12, float: false };
+    if (round <= 15) return { min: 2, max: 30, float: true };
+    return { min: 3, max: 60, float: true };
+  }
+
+  // Helper: Generate a random float or int
+  function randomOperand(min, max, asFloat = false) {
+    if (asFloat && Math.random() < 0.5) {
+      // 50% chance of float
+      return +(Math.random() * (max - min) + min).toFixed(1);
+    } else {
+      return randomInt(min, max);
+    }
   }
 
   function generateExpressionsForRound(round, count) {
@@ -265,54 +271,51 @@
     const range = getOperandRangeForRound(round);
     const results = new Set();
     const items = [];
-
-    // Build an operator sequence that rotates through ops to ensure diversity
-    const opSeq = Array.from({ length: count }, (_, i) => ops[i % ops.length]);
-
     let guard = 0;
-    for (let i = 0; i < opSeq.length && guard < 5000; i++) {
-      const op = opSeq[i];
-      let attempts = 0;
-      while (attempts < 500) {
-        attempts++;
-        guard++;
-        let a = randomInt(range.min, range.max);
-        let b = randomInt(range.min, range.max);
-
-        // Keep multiplication results modest
-        if (op === '*') {
-          a = randomInt(range.min, Math.min(range.max, 12));
-          b = randomInt(range.min, Math.min(range.max, 12));
-        }
-
-        // Clean integer division when using '/'
-        if (op === '/') {
-          b = randomInt(Math.max(1, range.min), Math.min(range.max, 12));
-          if (b === 0) b = 1;
-          const q = randomInt(1, Math.min(30, Math.floor(range.max / b)) || 1);
-          a = b * q;
-        }
-
-        const value = evaluate(a, b, op);
-        if (!Number.isFinite(value)) continue;
-        if (Math.abs(value) > 999) continue;
-        if (results.has(value)) continue;
-
-        results.add(value);
-        const expr = `${a} ${op} ${b}`;
-        items.push({ expr, value });
-        break;
+    while (items.length < count && guard < 5000) {
+      guard++;
+      // Pick unique operators per question, rotate list
+      const op = ops[items.length % ops.length];
+      // Use floats in later rounds
+      let a, b;
+      if (op === '/' && range.float) {
+        b = randomOperand(Math.max(0.5, range.min), Math.max(1, Math.min(15, range.max)), true);
+        // To avoid div/0
+        if (b === 0) b = 1;
+        a = +(b * randomInt(2, Math.max(3, Math.floor(range.max / b)))).toFixed(1);
+      } else if (op === '^') {
+        // Power: base small, exp small to moderate
+        a = randomOperand(range.min, Math.min(range.max, round < 10 ? 5 : 9), false);
+        b = randomOperand(2, round < 10 ? 3 : (round < 20 ? 4 : 6), false);
+      } else {
+        a = randomOperand(range.min, range.max, op !== '^' && range.float);
+        b = randomOperand(range.min, range.max, op !== '^' && range.float);
       }
+      const value = evaluateAdvanced(a, b, op);
+      if (!Number.isFinite(value)) continue;
+      if (Math.abs(value) > 999999) continue;
+      // Use rounded value as key to avoid floating roundtrip dupe
+      const valKey = Math.round(+value * 1000) / 1000;
+      if (results.has(valKey)) continue;
+      results.add(valKey);
+      // Format expression: floats show up to 1 decimal; powers with ^
+      const exprStr =
+        op === '^'
+        ? `${a}^${b}`
+        : `${a}${op}${b}`;
+      items.push({ expr: exprStr, value });
     }
     return items;
   }
 
-  function evaluate(a, b, op) {
+  // Evaluator supporting ^ and float-friendly
+  function evaluateAdvanced(a, b, op) {
     switch (op) {
-      case '+': return a + b;
-      case '-': return a - b;
-      case '*': return a * b;
-      case '/': return b === 0 ? Infinity : a / b;
+      case '+': return +(a + b).toFixed(2);
+      case '-': return +(a - b).toFixed(2);
+      case '*': return +(a * b).toFixed(2);
+      case '/': return b === 0 ? Infinity : +(a / b).toFixed(2);
+      case '^': return Math.pow(a, b);
       default: return NaN;
     }
   }
