@@ -70,13 +70,16 @@
     setTimeout(() => {
       // Generate new round
       const count = getBubbleCountForRound(currentRound);
-      const expressions = generateExpressionsForRound(currentRound, count);
+      let expressions = generateExpressionsForRound(currentRound, count);
       targetOrder = expressions
         .map(x => x.value)
         .slice()
         .sort((a, b) => a - b);
       nextIndex = 0;
       acceptingInput = true;
+
+      // Shuffle the display order of bubbles
+      expressions = shuffleArray(expressions);
 
       // Render
       renderBoardExpressions(expressions);
@@ -334,6 +337,16 @@
   function hideOverlay(el) {
     el.classList.remove('visible');
     el.setAttribute('aria-hidden', 'true');
+  }
+
+  // Fisher-Yates shuffle util
+  function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
   }
 })();
 
