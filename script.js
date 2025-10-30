@@ -177,10 +177,11 @@
     const target = e.currentTarget;
     if (!(target instanceof HTMLElement)) return;
 
-    const value = parseInt(target.dataset.value || '', 10);
+    const value = parseFloat(target.dataset.value || '');
     const expected = targetOrder[nextIndex];
 
-    if (value === expected) {
+    // Account for floating point precision issues with isClose
+    if (isClose(value, expected)) {
       // Correct selection
       target.classList.add('correct');
       target.disabled = true;
@@ -199,6 +200,11 @@
       flashWrong(target);
       applyPenalty();
     }
+  }
+
+  // Helper for float comparison
+  function isClose(val1, val2, eps = 0.01) {
+    return Math.abs(val1 - val2) < eps;
   }
 
   function flashWrong(el) {
