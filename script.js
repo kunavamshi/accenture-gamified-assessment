@@ -16,7 +16,7 @@
 
   // Game constants
   const TOTAL_ROUNDS = 25;
-  const TIME_PER_ROUND = 30; // seconds
+  const TIME_PER_ROUND = 15; // seconds
   const PENALTY_SECONDS = 2; // on wrong selection
   const POINTS_PER_SEQUENCE = 10;
 
@@ -240,22 +240,24 @@
 
   // Difficulty scaling
   function getBubbleCountForRound(round) {
-    // Start at 3, increase roughly every 3 rounds, cap at 10
-    const inc = Math.floor((round - 1) / 3);
-    return Math.min(3 + inc, 10);
+    // Always exactly 3 bubbles per round
+    return 3;
   }
 
   function getOperatorSetForRound(round) {
-    // Always include all operators to ensure diversity every round
+    // Gradual ramp: only + for 1-5, + and - for 6-10, + - * 11-18, then all
+    if (round <= 5) return ['+'];
+    if (round <= 10) return ['+', '-'];
+    if (round <= 18) return ['+', '-', '*'];
     return ['+', '-', '*', '/'];
   }
 
   function getOperandRangeForRound(round) {
-    // Increase operand magnitude with rounds
-    if (round < 6) return { min: 1, max: 9 };
-    if (round < 11) return { min: 1, max: 15 };
-    if (round < 18) return { min: 1, max: 25 };
-    return { min: 1, max: 40 };
+    // Increase operand magnitude and complexity with rounds
+    if (round <= 5) return { min: 1, max: 12 };
+    if (round <= 10) return { min: 3, max: 20 };
+    if (round <= 18) return { min: 6, max: 40 };
+    return { min: 10, max: 80 };
   }
 
   function generateExpressionsForRound(round, count) {
